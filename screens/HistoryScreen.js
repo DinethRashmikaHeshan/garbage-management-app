@@ -5,7 +5,7 @@ import axios from 'axios';
 
 const HistoryScreen = () => {
   const [scanRecords, setScanRecords] = useState([]);
-  const collectorId = "64b8c7457b56f9117cbdbb9b";
+  const collectorId = "670d6bc26976d9dc2063ea0b";
 
   // Fetch scan records when the component mounts
   useEffect(() => {
