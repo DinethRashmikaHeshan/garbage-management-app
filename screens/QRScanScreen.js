@@ -1,58 +1,128 @@
+// QRScanScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, Alert } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
-import axios from 'axios';
+import QRScanService from '../services/QRScanService'; // Import service
+import { useNavigation } from '@react-navigation/native';
 
-export default function QRScanScreen({ navigation }) {
+export default function QRScanScreen({ collectorId }) {
   const [hasPermission, setHasPermission] = useState(null);
-  const [scannedCode, setScannedCode] = useState(null);
+  const [scanned, setScanned] = useState(false);
+  const navigation = useNavigation();
 
   // Request camera permission on component mount
   useEffect(() => {
-    (async () => {
+    const requestPermissions = async () => {
       const { status } = await BarCodeScanner.requestPermissionsAsync();
       setHasPermission(status === 'granted');
-    })();
+    };
+    requestPermissions();
   }, []);
 
-  // Function to handle the QR code scan success
-  const handleBarCodeScanned = ({ type, data }) => {
-    setScannedCode(data);  // Set the scanned QR code value to state
-    Alert.alert('Scan successful', `QR code scanned: ${data}`);
+  // Handle QR code scanning
+  const handleBarCodeScanned = async ({ type, data }) => {
+    if (scanned) return; // Prevent multiple scans
+    setScanned(true);
+
+    // Extract deviceId from QR code
+    const deviceId = data.split('/').pop();
+    console.log('Scanned QR Code:', deviceId);
+    Alert.alert('Scan successful', `QR code scanned: ${deviceId}`);
+
+    // Submit scan data to backend
+    await submitScan(deviceId);
   };
 
-  // Function to submit the scanned QR code to the backend
-  const submitScan = async () => {
+  // Submit scan data to backend
+  const submitScan = async (deviceId) => {
     try {
-      const response = await axios.post('http://192.168.8.191:3000/api/scan/scan', {
-        qrCode: scannedCode,  // Send the scanned QR code data to backend
-      });
-
-      // Show success message and navigate to PickupPoints screen
+      const response = await QRScanService.submitScan(deviceId, collectorId);
       Alert.alert('Success', 'Full capacity collected, device marked as inactive!');
       navigation.navigate('PickupPoints');  
     } catch (error) {
-      // Handle error case
       Alert.alert('Error', 'Failed to process scan');
     }
   };
 
+  // Handle camera permission status
   if (hasPermission === null) {
-    return <Text>Requesting for camera permission...</Text>;
+    return <View />;
   }
+
   if (hasPermission === false) {
-    return <Text>No access to camera</Text>;
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>Camera permission not granted</Text>
+      </View>
+    );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <BarCodeScanner
-        onBarCodeScanned={scannedCode ? undefined : handleBarCodeScanned}  // Disable scanner after a scan
-        style={{ flex: 1 }}
-      />
-      {scannedCode && (
-        <Button title="Submit Scan" onPress={submitScan} />  // Button to submit the scanned QR code
-      )}
+    <View style={styles.container}>
+      <Text style={styles.title}>Welcome to the QR Scanner!</Text>
+      <Text style={styles.paragraph}>Scan a QR code to start your job.</Text>
+
+      {/* QR Code Scanner */}
+      <View style={styles.cameraContainer}>
+        <BarCodeScanner
+          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+          style={styles.camera}
+        />
+      </View>
+
+      {/* Reset Scan Button */}
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => setScanned(false)}
+        disabled={!scanned}
+      >
+        <Text style={styles.buttonText}>Reset Scanner</Text>
+      </TouchableOpacity>
     </View>
   );
 }
+
+// Styles for QRScanScreen
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8f5e9', // Light green background
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  paragraph: {
+    fontSize: 16,
+    marginBottom: 40,
+  },
+  cameraContainer: {
+    width: '80%',
+    aspectRatio: 1,
+    overflow: 'hidden',
+    borderRadius: 10,
+    marginBottom: 40,
+  },
+  camera: {
+    flex: 1,
+  },
+  button: {
+    backgroundColor: '#43a047', // Green background
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  text: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+});
